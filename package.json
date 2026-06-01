@@ -1,0 +1,38 @@
+{
+  "name": "gym-sales-automation-os",
+  "version": "1.0.0",
+  "description": "AI-assisted sales, retention, review, and upsell automation for a gym, built with n8n, OpenRouter, Cloudflare Workers, Google Sheets, Gmail/Brevo, and Google Calendar.",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "dev": "concurrently -n express,next -c green,blue \"npm:backend:dev\" \"npm:frontend:dev\"",
+    "app:dev": "npm run dev",
+    "backend:dev": "node src/backend/server.js",
+    "frontend:dev": "next dev apps/frontend -p 3000",
+    "frontend:build": "next build apps/frontend",
+    "frontend:start": "next start apps/frontend -p 3000",
+    "worker:check": "node --check src/cloudflare-worker/worker.js",
+    "worker:dev": "cd src/cloudflare-worker && wrangler dev",
+    "worker:deploy": "cd src/cloudflare-worker && wrangler deploy",
+    "test": "node --check src/cloudflare-worker/worker.js && node --check src/backend/server.js && node --check src/backend/data-store.js && npm run frontend:build"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "wrangler": "^4.95.0"
+  },
+  "dependencies": {
+    "concurrently": "^9.2.1",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "lucide-react": "^1.16.0",
+    "next": "^16.2.6",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6"
+  }
+}

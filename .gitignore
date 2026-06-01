@@ -1,0 +1,34 @@
+# Local Cloudflare Worker secrets
+src/cloudflare-worker/.dev.vars
+src/cloudflare-worker/.dev.vars.*
+
+# Local Node dependencies
+node_modules/
+apps/frontend/node_modules/
+src/cloudflare-worker/node_modules/
+
+# Wrangler local state/cache
+src/cloudflare-worker/.wrangler/
+.wrangler/
+
+# Local app runtime state
+data/app-state.json
+
+# Local environment overrides
+.env
+.env.local
+.env.*.local
+
+# Local server logs
+*.log
+
+# Next.js local build output
+apps/frontend/.next/
+apps/frontend/out/
+.next/
+out/
+
+# OS/editor files
+.DS_Store
+Thumbs.db
+.vscode/
