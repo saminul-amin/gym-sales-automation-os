@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "UpsellRecommendation",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "recommended_upsell",
+    "confidence",
+    "selection_reason",
+    "message_fr",
+    "requires_approval",
+    "risk_flags"
+  ],
+  "properties": {
+    "recommended_upsell": {
+      "type": "string",
+      "enum": ["personal_coaching", "pilates_reformer", "supplements", "premium_plan", "none"]
+    },
+    "confidence": {
+      "type": "string",
+      "enum": ["high", "medium", "low"]
+    },
+    "selection_reason": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 400
+    },
+    "message_fr": {
+      "type": "string",
+      "minLength": 0,
+      "maxLength": 700
+    },
+    "requires_approval": {
+      "type": "boolean",
+      "const": true
+    },
+    "risk_flags": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": ["medical_advice_risk", "price_claim_risk", "manual_review_needed"]
+      },
+      "uniqueItems": true
+    }
+  }
+}
+
