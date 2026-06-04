@@ -1,0 +1,16 @@
+{
+  "event_type": "member.created",
+  "resamania": {
+    "member_id": "res_mem_1001",
+    "lead_id": "lead_001",
+    "name": "Claire Martin",
+    "email": "claire@example.com",
+    "phone": "+33601020304",
+    "membership_type": "basic",
+    "join_date": "2026-05-25",
+    "membership_end_date": "2027-05-25",
+    "interests": ["weight_loss", "coaching"],
+    "status": "active"
+  }
+}
+

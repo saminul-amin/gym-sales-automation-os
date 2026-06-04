@@ -1,0 +1,11 @@
+{
+  "event_type": "attendance.updated",
+  "resamania": {
+    "member_id": "res_mem_1001",
+    "name": "Claire Martin",
+    "last_visit_date": "2026-05-25",
+    "visit_count_30_days": 9,
+    "status": "active"
+  }
+}
+

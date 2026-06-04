@@ -1,0 +1,15 @@
+{
+  "event_type": "member.cancelled",
+  "resamania": {
+    "member_id": "res_mem_2002",
+    "name": "Former Member",
+    "email": "former@example.com",
+    "phone": "+33699999999",
+    "membership_type": "basic",
+    "cancelled_at": "2026-05-20",
+    "cancellation_reason": "schedule_conflict",
+    "last_visit_date": "2026-04-30",
+    "status": "cancelled"
+  }
+}
+

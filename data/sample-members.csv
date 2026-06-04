@@ -1,0 +1,5 @@
+member_id,lead_id,name,email,phone,membership_type,join_date,membership_end_date,last_visit_date,visit_count_30_days,retention_risk,interests,upsell_candidate,review_requested,review_requested_at,status,consent_status,opted_out
+mem_001,lead_001,Claire Martin,claire@example.com,+33601020304,basic,2026-05-01,2027-05-01,2026-05-23,8,none,"weight_loss,coaching",yes,no,,active,yes,FALSE
+mem_002,,Thomas Leroy,thomas@example.com,+33611121314,premium,2025-11-15,2026-11-15,2026-05-08,2,medium,"strength",no,no,,active,yes,FALSE
+mem_003,,Nadia Petit,nadia@example.com,+33615161718,basic,2025-09-10,2026-06-01,2026-04-28,0,high,"pilates",no,yes,2026-04-15T12:00:00Z,active,yes,FALSE
+
