@@ -1,0 +1,1123 @@
+{
+  "info": {
+    "_postman_id": "0c28cb4f-6fd4-4db0-9f31-98db7f2cb5a8",
+    "name": "Gym Sales Automation OS - n8n Webhook Test Suite",
+    "description": "Professional Postman collection for testing Gym Sales Automation OS.\n\nUse this collection to test:\n- Cloudflare Worker router endpoints\n- Direct n8n webhook endpoints\n- Lead intake happy/failure paths\n- Workflow 02 booking route webhooks\n- Workflow 03 mock Resamania lifecycle events\n- Workflow 03 review request route\n\nImportant:\n- Workflow 02 Route C - Daily Trial Reminder is a scheduled route, not an HTTP webhook. Run it manually inside n8n or wait for its Schedule Trigger. It is not represented as a direct HTTP request unless you add a Webhook trigger to that route.\n- Import `postman/gym-sales-automation-os.postman_environment.json` and select it before running requests.\n- For n8n direct webhook tests, set `n8n_webhook_prefix` to `webhook-test` while using Listen for test event, or `webhook` for active production workflows.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "const now = new Date();",
+          "const tomorrowStart = new Date(now);",
+          "tomorrowStart.setDate(now.getDate() + 1);",
+          "tomorrowStart.setHours(18, 30, 0, 0);",
+          "const tomorrowEnd = new Date(tomorrowStart);",
+          "tomorrowEnd.setMinutes(tomorrowStart.getMinutes() + 45);",
+          "pm.collectionVariables.set('trial_start_iso', tomorrowStart.toISOString());",
+          "pm.collectionVariables.set('trial_end_iso', tomorrowEnd.toISOString());",
+          "pm.collectionVariables.set('request_timestamp', now.toISOString());"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "worker_base_url",
+      "value": "https://your-worker.your-subdomain.workers.dev",
+      "type": "string"
+    },
+    {
+      "key": "worker_secret",
+      "value": "replace-with-worker-shared-secret",
+      "type": "string"
+    },
+    {
+      "key": "n8n_base_url",
+      "value": "http://localhost:5678",
+      "type": "string"
+    },
+    {
+      "key": "n8n_webhook_prefix",
+      "value": "webhook-test",
+      "type": "string"
+    },
+    {
+      "key": "n8n_outbound_token",
+      "value": "replace-if-your-n8n-webhook-needs-bearer-auth",
+      "type": "string"
+    },
+    {
+      "key": "lead_id",
+      "value": "lead_001",
+      "type": "string"
+    },
+    {
+      "key": "member_id",
+      "value": "res_mem_1001",
+      "type": "string"
+    },
+    {
+      "key": "lead_email",
+      "value": "claire@example.com",
+      "type": "string"
+    },
+    {
+      "key": "lead_phone",
+      "value": "+33601020304",
+      "type": "string"
+    },
+    {
+      "key": "google_review_url",
+      "value": "https://g.page/r/replace-me/review",
+      "type": "string"
+    },
+    {
+      "key": "trial_start_iso",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "trial_end_iso",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "last_event_id",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "00 - Setup and Notes",
+      "description": "Set collection/environment variables before running requests.\n\nRequired variables:\n- `worker_base_url`: Cloudflare Worker base URL, for example `https://gym-sales-automation-os-router.yourname.workers.dev`\n- `worker_secret`: same value as Cloudflare `WEBHOOK_SHARED_SECRET`\n- `n8n_base_url`: local or hosted n8n base URL, for example `http://localhost:5678`\n- `n8n_webhook_prefix`: use `webhook-test` while listening for a test event, or `webhook` after activating workflows\n- `lead_id`: must exist in the Google Sheet for booking tests\n- `member_id`: must exist in the Google Sheet for review tests",
+      "item": [
+        {
+          "name": "Postman Echo - Variable Smoke Test",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "https://postman-echo.com/get?worker={{worker_base_url}}&n8n={{n8n_base_url}}&prefix={{n8n_webhook_prefix}}",
+              "protocol": "https",
+              "host": [
+                "postman-echo",
+                "com"
+              ],
+              "path": [
+                "get"
+              ],
+              "query": [
+                {
+                  "key": "worker",
+                  "value": "{{worker_base_url}}"
+                },
+                {
+                  "key": "n8n",
+                  "value": "{{n8n_base_url}}"
+                },
+                {
+                  "key": "prefix",
+                  "value": "{{n8n_webhook_prefix}}"
+                }
+              ]
+            },
+            "description": "Optional smoke test to confirm Postman variables are resolving."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Postman variables resolved', function () {",
+                  "  pm.expect(pm.request.url.toString()).to.include('worker=');",
+                  "  pm.expect(pm.request.url.toString()).to.include('n8n=');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "01 - Cloudflare Worker Router",
+      "description": "These requests test the public Cloudflare Worker routes. The Worker then forwards normalized events to n8n production webhook URLs.",
+      "item": [
+        {
+          "name": "Worker - Lead Created - Happy Path",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-PlugWheel-Secret",
+                "value": "{{worker_secret}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"event_type\": \"lead.created\",\n  \"source\": \"website\",\n  \"name\": \"Claire Martin\",\n  \"email\": \"{{lead_email}}\",\n  \"phone\": \"{{lead_phone}}\",\n  \"message\": \"Bonjour, je voudrais faire une seance d'essai cette semaine pour perdre du poids.\",\n  \"fitness_goal\": \"weight_loss\",\n  \"interested_service\": \"personal_training\",\n  \"preferred_channel\": \"email\",\n  \"consent_status\": \"yes\",\n  \"opted_out\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{worker_base_url}}/lead",
+              "host": [
+                "{{worker_base_url}}"
+              ],
+              "path": [
+                "lead"
+              ]
+            },
+            "description": "Sends a flat lead payload to the Cloudflare Worker. Worker normalizes it and forwards to n8n."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Worker accepted lead', function () { pm.response.to.have.status(202); });",
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set('last_event_id', json.event_id || '');",
+                  "pm.test('Response includes event_id', function () { pm.expect(json.event_id).to.exist; });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Worker - Lead Invalid - Missing Name",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-PlugWheel-Secret",
+                "value": "{{worker_secret}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"event_type\": \"lead.created\",\n  \"source\": \"website\",\n  \"email\": \"missing-name@example.com\",\n  \"phone\": \"+33622222222\",\n  \"message\": \"Je veux des infos.\",\n  \"consent_status\": \"yes\",\n  \"opted_out\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{worker_base_url}}/lead",
+              "host": [
+                "{{worker_base_url}}"
+              ],
+              "path": [
+                "lead"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Worker rejects invalid lead', function () { pm.response.to.have.status(422); });",
+                  "pm.test('Error explains missing name', function () { pm.expect(pm.response.text()).to.include('Lead name is required'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Worker - Lead Consent Unknown",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-PlugWheel-Secret",
+                "value": "{{worker_secret}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"event_type\": \"lead.created\",\n  \"source\": \"instagram\",\n  \"name\": \"Marc Dubois\",\n  \"email\": \"marc@example.com\",\n  \"phone\": \"+33605060708\",\n  \"message\": \"Quels sont vos horaires et vos tarifs ?\",\n  \"fitness_goal\": \"general_fitness\",\n  \"interested_service\": \"membership\",\n  \"preferred_channel\": \"email\",\n  \"consent_status\": \"unknown\",\n  \"opted_out\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{worker_base_url}}/lead",
+              "host": [
+                "{{worker_base_url}}"
+              ],
+              "path": [
+                "lead"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Worker accepted consent-unknown lead', function () { pm.response.to.have.status(202); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Worker - Lead Opted Out",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-PlugWheel-Secret",
+                "value": "{{worker_secret}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"event_type\": \"lead.created\",\n  \"source\": \"manual\",\n  \"name\": \"Opt Out Lead\",\n  \"email\": \"optout@example.com\",\n  \"phone\": \"+33633333333\",\n  \"message\": \"Stop, ne me contactez plus.\",\n  \"fitness_goal\": \"unknown\",\n  \"interested_service\": \"unknown\",\n  \"preferred_channel\": \"email\",\n  \"consent_status\": \"yes\",\n  \"opted_out\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{worker_base_url}}/lead",
+              "host": [
+                "{{worker_base_url}}"
+              ],
+              "path": [
+                "lead"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Worker accepted opted-out lead for logging', function () { pm.response.to.have.status(202); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Worker - Unauthorized Secret Negative Test",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-PlugWheel-Secret",
+                "value": "wrong-secret"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"event_type\": \"lead.created\",\n  \"source\": \"website\",\n  \"name\": \"Unauthorized Test\",\n  \"email\": \"unauthorized@example.com\",\n  \"phone\": \"+33644444444\",\n  \"consent_status\": \"yes\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{worker_base_url}}/lead",
+              "host": [
+                "{{worker_base_url}}"
+              ],
+              "path": [
+                "lead"
+              ]
+            },
+            "description": "Expected response is 401 if WEBHOOK_SHARED_SECRET is configured on the Worker."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Worker rejects bad secret when auth is enabled', function () {",
+                  "  pm.expect([401, 202]).to.include(pm.response.code);",
+                  "});",
+                  "pm.test('If status is 202, WEBHOOK_SHARED_SECRET is probably not configured', function () {",
+                  "  if (pm.response.code === 202) console.warn('Worker accepted bad secret. Check WEBHOOK_SHARED_SECRET.');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Worker - Mock Resamania Member Created",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-PlugWheel-Secret",
+                "value": "{{worker_secret}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"event_type\": \"member.created\",\n  \"resamania\": {\n    \"member_id\": \"res_mem_1001\",\n    \"lead_id\": \"{{lead_id}}\",\n    \"name\": \"Claire Martin\",\n    \"email\": \"{{lead_email}}\",\n    \"phone\": \"{{lead_phone}}\",\n    \"membership_type\": \"basic\",\n    \"join_date\": \"2026-05-25\",\n    \"membership_end_date\": \"2027-05-25\",\n    \"interests\": [\"weight_loss\", \"coaching\"],\n    \"status\": \"active\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{worker_base_url}}/resamania",
+              "host": [
+                "{{worker_base_url}}"
+              ],
+              "path": [
+                "resamania"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Worker accepted member.created event', function () { pm.response.to.have.status(202); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Worker - Mock Resamania Attendance Updated",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-PlugWheel-Secret",
+                "value": "{{worker_secret}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"event_type\": \"attendance.updated\",\n  \"resamania\": {\n    \"member_id\": \"{{member_id}}\",\n    \"name\": \"Claire Martin\",\n    \"last_visit_date\": \"2026-05-25\",\n    \"visit_count_30_days\": 9,\n    \"status\": \"active\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{worker_base_url}}/resamania",
+              "host": [
+                "{{worker_base_url}}"
+              ],
+              "path": [
+                "resamania"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Worker accepted attendance.updated event', function () { pm.response.to.have.status(202); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Worker - Mock Resamania Member Cancelled",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-PlugWheel-Secret",
+                "value": "{{worker_secret}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"event_type\": \"member.cancelled\",\n  \"resamania\": {\n    \"member_id\": \"res_mem_2002\",\n    \"name\": \"Former Member\",\n    \"email\": \"former@example.com\",\n    \"phone\": \"+33699999999\",\n    \"membership_type\": \"basic\",\n    \"cancelled_at\": \"2026-05-20\",\n    \"cancellation_reason\": \"schedule_conflict\",\n    \"last_visit_date\": \"2026-04-30\",\n    \"status\": \"cancelled\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{worker_base_url}}/resamania",
+              "host": [
+                "{{worker_base_url}}"
+              ],
+              "path": [
+                "resamania"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Worker accepted member.cancelled event', function () { pm.response.to.have.status(202); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Worker - Manual Interaction Event",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-PlugWheel-Secret",
+                "value": "{{worker_secret}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"event_type\": \"interaction.created\",\n  \"source\": \"manual\",\n  \"interaction\": {\n    \"person_type\": \"lead\",\n    \"person_id\": \"{{lead_id}}\",\n    \"channel\": \"manual\",\n    \"direction\": \"inbound\",\n    \"message\": \"Lead replied and prefers evening trial slots.\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{worker_base_url}}/interaction",
+              "host": [
+                "{{worker_base_url}}"
+              ],
+              "path": [
+                "interaction"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Worker accepted interaction event', function () { pm.response.to.have.status(202); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "02 - Direct n8n Workflow 01 - Lead Intake",
+      "description": "Use these requests when testing n8n webhooks directly. Set `n8n_webhook_prefix` to `webhook-test` while the workflow is listening for a test event.",
+      "item": [
+        {
+          "name": "n8n 01 - Lead Intake - Happy Path",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{n8n_outbound_token}}",
+                "disabled": true
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"event_id\": \"postman_lead_happy_{{$timestamp}}\",\n  \"event_type\": \"lead.created\",\n  \"received_at\": \"{{request_timestamp}}\",\n  \"source\": \"website\",\n  \"lead\": {\n    \"name\": \"Claire Martin\",\n    \"email\": \"{{lead_email}}\",\n    \"phone\": \"{{lead_phone}}\",\n    \"original_message\": \"Bonjour, je voudrais faire une seance d'essai cette semaine pour perdre du poids.\",\n    \"fitness_goal\": \"weight_loss\",\n    \"interested_service\": \"personal_training\",\n    \"preferred_channel\": \"email\",\n    \"consent_status\": \"yes\",\n    \"opted_out\": false\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{n8n_base_url}}/{{n8n_webhook_prefix}}/lead-intake",
+              "host": [
+                "{{n8n_base_url}}"
+              ],
+              "path": [
+                "{{n8n_webhook_prefix}}",
+                "lead-intake"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('n8n lead intake responded', function () { pm.expect(pm.response.code).to.be.oneOf([200, 201, 202]); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "n8n 01 - Lead Intake - Invalid Payload",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"event_id\": \"postman_invalid_{{$timestamp}}\",\n  \"event_type\": \"lead.created\",\n  \"received_at\": \"{{request_timestamp}}\",\n  \"source\": \"website\",\n  \"lead\": {\n    \"name\": \"\",\n    \"email\": \"invalid@example.com\",\n    \"phone\": \"+33655555555\",\n    \"original_message\": \"Missing name test.\",\n    \"consent_status\": \"yes\",\n    \"opted_out\": false\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{n8n_base_url}}/{{n8n_webhook_prefix}}/lead-intake",
+              "host": [
+                "{{n8n_base_url}}"
+              ],
+              "path": [
+                "{{n8n_webhook_prefix}}",
+                "lead-intake"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('n8n rejects invalid payload with 422', function () { pm.response.to.have.status(422); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "n8n 01 - Lead Intake - Consent Unknown",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"event_id\": \"postman_consent_unknown_{{$timestamp}}\",\n  \"event_type\": \"lead.created\",\n  \"received_at\": \"{{request_timestamp}}\",\n  \"source\": \"instagram\",\n  \"lead\": {\n    \"name\": \"Marc Dubois\",\n    \"email\": \"marc@example.com\",\n    \"phone\": \"+33605060708\",\n    \"original_message\": \"Quels sont vos horaires et vos tarifs ?\",\n    \"fitness_goal\": \"general_fitness\",\n    \"interested_service\": \"membership\",\n    \"preferred_channel\": \"email\",\n    \"consent_status\": \"unknown\",\n    \"opted_out\": false\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{n8n_base_url}}/{{n8n_webhook_prefix}}/lead-intake",
+              "host": [
+                "{{n8n_base_url}}"
+              ],
+              "path": [
+                "{{n8n_webhook_prefix}}",
+                "lead-intake"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('n8n handled consent unknown', function () { pm.expect(pm.response.code).to.be.oneOf([200, 201, 202]); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "n8n 01 - Lead Intake - Opted Out",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"event_id\": \"postman_opted_out_{{$timestamp}}\",\n  \"event_type\": \"lead.created\",\n  \"received_at\": \"{{request_timestamp}}\",\n  \"source\": \"manual\",\n  \"lead\": {\n    \"name\": \"Opt Out Lead\",\n    \"email\": \"optout@example.com\",\n    \"phone\": \"+33633333333\",\n    \"original_message\": \"Stop, ne me contactez plus.\",\n    \"fitness_goal\": \"unknown\",\n    \"interested_service\": \"unknown\",\n    \"preferred_channel\": \"email\",\n    \"consent_status\": \"yes\",\n    \"opted_out\": true\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{n8n_base_url}}/{{n8n_webhook_prefix}}/lead-intake",
+              "host": [
+                "{{n8n_base_url}}"
+              ],
+              "path": [
+                "{{n8n_webhook_prefix}}",
+                "lead-intake"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('n8n handled opted out lead', function () { pm.expect(pm.response.code).to.be.oneOf([200, 201, 202]); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "03 - Direct n8n Workflow 02 - Booking",
+      "item": [
+        {
+          "name": "n8n Workflow 02 Route A - Trial Requested",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"lead_id\": \"{{lead_id}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{n8n_base_url}}/{{n8n_webhook_prefix}}/trial-requested",
+              "host": [
+                "{{n8n_base_url}}"
+              ],
+              "path": [
+                "{{n8n_webhook_prefix}}",
+                "trial-requested"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Trial requested webhook responded', function () { pm.expect(pm.response.code).to.be.oneOf([200, 404]); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "n8n Workflow 02 Route B - Trial Slot Selected",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"lead_id\": \"{{lead_id}}\",\n  \"trial_start\": \"{{trial_start_iso}}\",\n  \"trial_end\": \"{{trial_end_iso}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{n8n_base_url}}/{{n8n_webhook_prefix}}/trial-slot-selected",
+              "host": [
+                "{{n8n_base_url}}"
+              ],
+              "path": [
+                "{{n8n_webhook_prefix}}",
+                "trial-slot-selected"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Trial slot selected webhook responded', function () { pm.expect(pm.response.code).to.be.oneOf([200, 404]); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "n8n Workflow 02 Route D - Trial Outcome - Converted",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"lead_id\": \"{{lead_id}}\",\n  \"outcome\": \"converted\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{n8n_base_url}}/{{n8n_webhook_prefix}}/trial-outcome",
+              "host": [
+                "{{n8n_base_url}}"
+              ],
+              "path": [
+                "{{n8n_webhook_prefix}}",
+                "trial-outcome"
+              ]
+            }
+          }
+        },
+        {
+          "name": "n8n Workflow 02 Route D - Trial Outcome - Attended Not Converted",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"lead_id\": \"{{lead_id}}\",\n  \"outcome\": \"attended_not_converted\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{n8n_base_url}}/{{n8n_webhook_prefix}}/trial-outcome",
+              "host": [
+                "{{n8n_base_url}}"
+              ],
+              "path": [
+                "{{n8n_webhook_prefix}}",
+                "trial-outcome"
+              ]
+            }
+          }
+        },
+        {
+          "name": "n8n Workflow 02 Route D - Trial Outcome - No Show",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"lead_id\": \"{{lead_id}}\",\n  \"outcome\": \"no_show\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{n8n_base_url}}/{{n8n_webhook_prefix}}/trial-outcome",
+              "host": [
+                "{{n8n_base_url}}"
+              ],
+              "path": [
+                "{{n8n_webhook_prefix}}",
+                "trial-outcome"
+              ]
+            }
+          }
+        },
+        {
+          "name": "n8n Workflow 02 Route D - Trial Outcome - Not Interested",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"lead_id\": \"{{lead_id}}\",\n  \"outcome\": \"not_interested\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{n8n_base_url}}/{{n8n_webhook_prefix}}/trial-outcome",
+              "host": [
+                "{{n8n_base_url}}"
+              ],
+              "path": [
+                "{{n8n_webhook_prefix}}",
+                "trial-outcome"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "04 - Direct n8n Workflow 03 - Member Lifecycle",
+      "item": [
+        {
+          "name": "n8n Workflow 03 Route A - Resamania Member Created",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"event_type\": \"member.created\",\n  \"resamania\": {\n    \"member_id\": \"{{member_id}}\",\n    \"lead_id\": \"{{lead_id}}\",\n    \"name\": \"Claire Martin\",\n    \"email\": \"{{lead_email}}\",\n    \"phone\": \"{{lead_phone}}\",\n    \"membership_type\": \"basic\",\n    \"join_date\": \"2026-05-25\",\n    \"membership_end_date\": \"2027-05-25\",\n    \"interests\": [\"weight_loss\", \"coaching\"],\n    \"status\": \"active\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{n8n_base_url}}/{{n8n_webhook_prefix}}/resamania-event",
+              "host": [
+                "{{n8n_base_url}}"
+              ],
+              "path": [
+                "{{n8n_webhook_prefix}}",
+                "resamania-event"
+              ]
+            }
+          }
+        },
+        {
+          "name": "n8n Workflow 03 Route A - Resamania Attendance Updated",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"event_type\": \"attendance.updated\",\n  \"resamania\": {\n    \"member_id\": \"{{member_id}}\",\n    \"name\": \"Claire Martin\",\n    \"last_visit_date\": \"2026-05-25\",\n    \"visit_count_30_days\": 9,\n    \"status\": \"active\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{n8n_base_url}}/{{n8n_webhook_prefix}}/resamania-event",
+              "host": [
+                "{{n8n_base_url}}"
+              ],
+              "path": [
+                "{{n8n_webhook_prefix}}",
+                "resamania-event"
+              ]
+            }
+          }
+        },
+        {
+          "name": "n8n Workflow 03 Route A - Resamania Member Cancelled",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"event_type\": \"member.cancelled\",\n  \"resamania\": {\n    \"member_id\": \"res_mem_2002\",\n    \"name\": \"Former Member\",\n    \"email\": \"former@example.com\",\n    \"phone\": \"+33699999999\",\n    \"membership_type\": \"basic\",\n    \"cancelled_at\": \"2026-05-20\",\n    \"cancellation_reason\": \"schedule_conflict\",\n    \"last_visit_date\": \"2026-04-30\",\n    \"status\": \"cancelled\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{n8n_base_url}}/{{n8n_webhook_prefix}}/resamania-event",
+              "host": [
+                "{{n8n_base_url}}"
+              ],
+              "path": [
+                "{{n8n_webhook_prefix}}",
+                "resamania-event"
+              ]
+            }
+          }
+        },
+        {
+          "name": "n8n Workflow 03 Route C - Review Request - Positive",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"member_id\": \"{{member_id}}\",\n  \"satisfaction\": \"positive\",\n  \"google_review_url\": \"{{google_review_url}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{n8n_base_url}}/{{n8n_webhook_prefix}}/review-request",
+              "host": [
+                "{{n8n_base_url}}"
+              ],
+              "path": [
+                "{{n8n_webhook_prefix}}",
+                "review-request"
+              ]
+            }
+          }
+        },
+        {
+          "name": "n8n Workflow 03 Route C - Review Request - Not Positive Negative Test",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"member_id\": \"{{member_id}}\",\n  \"satisfaction\": \"neutral\",\n  \"google_review_url\": \"{{google_review_url}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{n8n_base_url}}/{{n8n_webhook_prefix}}/review-request",
+              "host": [
+                "{{n8n_base_url}}"
+              ],
+              "path": [
+                "{{n8n_webhook_prefix}}",
+                "review-request"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
