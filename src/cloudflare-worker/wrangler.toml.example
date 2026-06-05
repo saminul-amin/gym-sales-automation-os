@@ -1,0 +1,14 @@
+name = "gym-sales-automation-os-router"
+main = "worker.js"
+compatibility_date = "2026-05-25"
+workers_dev = true
+
+[vars]
+APP_NAME = "Gym Sales Automation OS"
+
+# Set these with wrangler secret put:
+# WEBHOOK_SHARED_SECRET
+# N8N_LEAD_WEBHOOK_URL
+# N8N_RESAMANIA_WEBHOOK_URL
+# N8N_INTERACTION_WEBHOOK_URL
+# N8N_OUTBOUND_TOKEN
